@@ -13,7 +13,7 @@ parent_path=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
 cd "$parent_path"
 
 # The only requirement for the module is to start python 3.7 or later
-module load miniconda/3
+module load python/3.9.8
 
 # Test if the python version is at least 3.7
 version_major=$(python3 -c 'import sys; print(sys.version_info[0])')

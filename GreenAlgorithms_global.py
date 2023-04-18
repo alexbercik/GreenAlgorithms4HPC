@@ -314,6 +314,8 @@ def main(args, cluster_info, fParams):
     ### Pull usage statistics from the workload manager
     WM = WorkloadManager(args, cluster_info)
     WM.pull_logs()
+    # BERCIK: added the following for debugging
+    # print(WM.logs_raw)    
 
     ### Log the output for debugging
     scripts_dir = os.path.dirname(os.path.realpath(__file__))

@@ -35,14 +35,46 @@ class Helpers_WM():
         '''
         mem_raw, n_nodes, n_cores = x['ReqMem'], x['NNodes'], x['NCPUS']
 
-        unit = mem_raw[-2]
-        per_coreOrNode = mem_raw[-1]
-        memory = float(mem_raw[:-2])
+        # BERCIK: add this for cases when mem_raw is NaN
+        if pd.isnull(mem_raw): mem_raw = x['MaxRSS']
+        if pd.isnull(mem_raw): mem_raw = '0K'
+
+        unit = str(mem_raw)[-1] # BERCIK: changed from [-2]
+        if str(unit) not in ['M', 'G', 'K']: # BERCIK: added
+            print('ERROR: Something wrong with the unit. Raw line output:')
+            print(x) 
+            print('This is what it understood:')
+            print('mem_raw = ', mem_raw)
+            print('unit = ', unit)
+            print('n_nodes = ', n_nodes)
+            print('n_cores = ', n_cores)
+        per_coreOrNode = 'n' # mem_raw[-1] # BERCIK: changed from mem_raw[-1], appears Niagara is always mem_raw = 175000M*NNodes
+        # TODO BERCIK: could make this cleaner like the default unit in clean_RSS()
+        try:
+            memory = float(mem_raw[:-1]) # BERCIK: changed from [-2]
+        except:
+            print('ERROR: Something wrong with the memory. Raw line output:')
+            print(x) 
+            print('This is what it understood:')
+            print('mem_raw = ', mem_raw)
+            print('unit = ', unit)
+            print('n_nodes = ', n_nodes)
+            print('n_cores = ', n_cores)
+            exit()
+    
 
         # Convert memory to GB
         memory = self.convert_to_GB(memory,unit)
 
         # Multiply by number of nodes/cores
+        if str(per_coreOrNode) not in ['n','c']:
+            print('ERROR: Something wrong with per_coreOrNode. Raw line output:')
+            print(x) 
+            print('This is what it understood:')
+            print('mem_raw = ', mem_raw)
+            print('unit = ', unit)
+            print('n_nodes = ', n_nodes)
+            print('n_cores = ', n_cores)
         assert per_coreOrNode in ['n','c']
         if per_coreOrNode == 'c':
             memory *= n_cores
