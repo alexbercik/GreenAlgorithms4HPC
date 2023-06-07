@@ -35,47 +35,85 @@ class Helpers_WM():
         '''
         mem_raw, n_nodes, n_cores = x['ReqMem'], x['NNodes'], x['NCPUS']
 
-        # BERCIK: add this for cases when mem_raw is NaN
-        if pd.isnull(mem_raw): mem_raw = x['MaxRSS']
-        if pd.isnull(mem_raw): mem_raw = '0K'
+        # Bercik Modification: add this for cases when mem_raw is NaN
+        #if pd.isnull(mem_raw): mem_raw = x['MaxRSS']
+        #if pd.isnull(mem_raw): mem_raw = '0K'
+        
+        # Bercik Modification, appears sacct has different format on Niagara
+        if self.cluster_info['cluster_name'] == 'Niagara':
+            unit = str(mem_raw)[-1]
+            per_coreOrNode = 'n'
+        else:
+            unit = str(mem_raw)[-2]
+            per_coreOrNode = mem_raw[-1] 
 
-        unit = str(mem_raw)[-1] # BERCIK: changed from [-2]
-        if str(unit) not in ['M', 'G', 'K']: # BERCIK: added
-            print('ERROR: Something wrong with the unit. Raw line output:')
-            print(x) 
-            print('This is what it understood:')
-            print('mem_raw = ', mem_raw)
-            print('unit = ', unit)
-            print('n_nodes = ', n_nodes)
-            print('n_cores = ', n_cores)
-        per_coreOrNode = 'n' # mem_raw[-1] # BERCIK: changed from mem_raw[-1], appears Niagara is always mem_raw = 175000M*NNodes
-        # TODO BERCIK: could make this cleaner like the default unit in clean_RSS()
-        try:
-            memory = float(mem_raw[:-1]) # BERCIK: changed from [-2]
-        except:
-            print('ERROR: Something wrong with the memory. Raw line output:')
-            print(x) 
-            print('This is what it understood:')
-            print('mem_raw = ', mem_raw)
-            print('unit = ', unit)
-            print('n_nodes = ', n_nodes)
-            print('n_cores = ', n_cores)
-            exit()
-    
+        if str(unit) not in ['M', 'G', 'K']: # Bercik Modification: added
+            # first debug attempt - look for memory in AllocTRES
+            TRESstr = str(x.AllocTRES).split(',')
+            TRESmem = [i for i in TRESstr if 'mem=' in i]
+            if len(TRESmem)==0:
+                resolved = False
+            elif len(TRESmem)>1:
+                resolved = False
+            else:
+                idx = TRESmem[0].find('=')
+                if idx == -1:
+                    resolved = False
+                else:
+                    mem_raw = TRESmem[0][idx+1:]
+                    resolved = True
+            if resolved:
+                if self.cluster_info['cluster_name'] == 'Niagara':
+                    unit = str(mem_raw)[-1]
+                    per_coreOrNode = 'n'
+                else:
+                    unit = str(mem_raw)[-2]
+                    per_coreOrNode = mem_raw[-1] 
+            else:
+                assert 'default_unit_RSS' in self.cluster_info, "Some values of MaxRSS don't have a unit. Please specify a default_unit_RSS in cluster_info.yaml"
+                if self.args.verbose:
+                    print("WARNING: Something wrong with calculating the memory unit for a run on {0}. Using default, '{1}'. Raw output:".format(x['Submit'],self.cluster_info['default_unit_RSS']))
+                    print(x) 
+                    print('From this, we were able to understand mem_raw = {0} and unit = {1}.'.format(mem_raw, unit))
+                else:
+                    print("WARNING: Something wrong with calculating the memory unit for a run on {0}. Using default, '{1}'. Use flag --verbose for more debugging info.".format(x['Submit'],self.cluster_info['default_unit_RSS']))
+                unit = self.cluster_info['default_unit_RSS']
+        
+        # Bercik Modification, appears Niagara is always mem_raw = 175000M*NNodes
+        if self.cluster_info['cluster_name'] == 'Niagara':
+            try:
+                memory = float(mem_raw[:-1])
+            except:
+                if self.args.verbose:
+                    print('WARNING: Something wrong with the memory for a run on {0}. Using default 175000M*NNodes. Raw line output:'.format(x['Submit']))
+                    print(x) 
+                    print('From this, we were able to understand mem_raw = {0}, unit = {1}, NNodes={2}.'.format(mem_raw, unit, n_nodes))
+                else:
+                    print('WARNING: Something wrong with the memory for a run on {0}. Using default 175000M*NNodes. Use flag --verbose for more debugging info.'.format(x['Submit']))
+                memory = 175000
+                unit = 'M'
+        else:
+            try:
+                memory = float(mem_raw[:-2])
+            except:
+                # someone else will have to figure out what is going on below for other clusters. Take inspiration from my debugging above.
+                print('ERROR: Something wrong with the memory. Raw line output:')
+                print(x) 
+                print('This is what it understood:')
+                print('mem_raw = ', mem_raw)
+                print('unit = ', unit)
+                print('n_nodes = ', n_nodes)
+                print('n_cores = ', n_cores)
+                exit()
 
         # Convert memory to GB
         memory = self.convert_to_GB(memory,unit)
 
         # Multiply by number of nodes/cores
         if str(per_coreOrNode) not in ['n','c']:
-            print('ERROR: Something wrong with per_coreOrNode. Raw line output:')
+            print('WARNING: Something wrong with per_coreOrNode. Using default per_coreOrNode=n. Raw line output:')
             print(x) 
-            print('This is what it understood:')
-            print('mem_raw = ', mem_raw)
-            print('unit = ', unit)
-            print('n_nodes = ', n_nodes)
-            print('n_cores = ', n_cores)
-        assert per_coreOrNode in ['n','c']
+            per_coreOrNode = 'n'
         if per_coreOrNode == 'c':
             memory *= n_cores
         else:
@@ -106,7 +144,7 @@ class Helpers_WM():
 
         return memory
 
-    def cleam_UsedMem(self, x):
+    def clean_UsedMem(self, x):
         if x.UsedMem_ == -1:
             # NB when MaxRSS didn't store any values, we assume that "memory used = memory requested"
             return x.ReqMemX
@@ -131,6 +169,29 @@ class Helpers_WM():
                 if len(L_partitions) > 1:
                     print(f"\n-!- WARNING: Multiple partitions logged on a job than ran: {x.JobID} - {x.Partition} (using the first one)\n")
             return L_partitions[0]
+        
+    def clean_hyperthreading(self, x):
+        '''
+        Clean the NCPUS field by accounting for hyperthreading.
+        On Niagara, NCPUS will often be double of the actual number of CPUs used,
+        and we must be careful of this to not double-count resources used.
+        Uses the fact that 'billing=n' in AllocTRES contains the correct number of CPUs.
+        '''
+        TRESstr = str(x.AllocTRES).split(',')
+        billing = [i for i in TRESstr if 'billing=' in i]
+        if len(billing)==0:
+            print("WARNING: Unable to find 'billing' in AllocTRES, so defaulting to NCPUS, even if this may double-count hyperthreading contributions")
+            return x.NCPUS
+        elif len(billing)>1:
+            print("WARNING: Something weird happened, there are two 'billing' entries in AllocTRES, so defaulting to NCPUS, even if this may double-count hyperthreading contributions")
+            idx = -1
+        else:
+            idx = billing[0].find('=')
+            if idx == -1:
+                print("WARNING: Unable to find 'billing' in AllocTRES, so defaulting to NCPUS, even if this may double-count hyperthreading contributions")
+                return x.NCPUS
+            else:
+                return int(billing[0][idx+1:])
 
     def set_partitionType(self, x):
         assert  x in self.cluster_info['partitions'], f"\n-!- Unknown partition: {x} -!-\n"
@@ -317,6 +378,17 @@ class WorkloadManager(Helpers_WM):
         '''
         # self.logs_df_raw = self.logs_df.copy() # DEBUGONLY Save a copy of uncleaned raw for debugging mainly
 
+        # Bercik Modification: Drop rows with NaN partitions since these are only 
+        # administrative subjobs created by slurm and are not 'real'
+        if self.cluster_info['cluster_name'] == 'Niagara':
+            self.logs_df.dropna(subset=['Partition'],inplace=True)
+            self.logs_df.reset_index(drop=True,inplace=True)
+
+        # Bercik Modification: Drop rows with zero TotalCPU time and CPUTime
+        if self.cluster_info['cluster_name'] == 'Niagara':
+            self.logs_df.drop(self.logs_df[(self.logs_df.TotalCPU == '00:00:00') \
+                                         & (self.logs_df.CPUTime == '00:00:00')].index, inplace=True)
+
         ### Calculate real memory usage
         self.logs_df['ReqMemX'] = self.logs_df.apply(self.calc_ReqMem, axis=1)
 
@@ -355,7 +427,11 @@ class WorkloadManager(Helpers_WM):
 
         ### Number of CPUs
         # e.g. here there is no cleaning necessary, so I just standardise the column name
-        self.logs_df['NCPUS_'] = self.logs_df.NCPUS
+        if self.cluster_info['cluster_name'] == 'Niagara':
+            # Bercik Modification: Need to account for hyperthreading
+            self.logs_df['NCPUS_'] = self.logs_df.apply(self.clean_hyperthreading, axis=1)
+        else:
+            self.logs_df['NCPUS_'] = self.logs_df.NCPUS
 
         ### Number of nodes
         self.logs_df['NNodes_'] = self.logs_df.NNodes
@@ -405,7 +481,7 @@ class WorkloadManager(Helpers_WM):
         self.df_agg.loc[self.df_agg.StateX == -1, 'StateX'] = 1
 
         ### Replace UsedMem_=-1 with memory requested (for when MaxRSS=NaN)
-        self.df_agg['UsedMem2_'] = self.df_agg.apply(self.cleam_UsedMem, axis=1)
+        self.df_agg['UsedMem2_'] = self.df_agg.apply(self.clean_UsedMem, axis=1)
 
         ### Label as CPU or GPU partition
         self.df_agg['PartitionTypeX'] = self.df_agg.PartitionX.apply(self.set_partitionType)

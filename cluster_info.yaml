@@ -5,28 +5,40 @@
 ---
 cluster_name: "Niagara" # [str]
 granularity_memory_request: 6 # [number] in GB,
+# this is the default value, I'm not sure what to change it to. The minimum memory
+# needed / allocated must be a multiple of this value. Useless on Niagara anyway.
+
 partitions: # a list of the different partitions on the cluster
   debug: # name of the partition
     type: CPU # [CPU or GPU]
-    model: "Intel XXX" # [str] the model of the processing core on this partition
-    TDP: 10 # [number] TDP of the processor, in W, per core
+    model: "Intel(R) Xeon(R) Gold 6148/6248 @ 2.4/2.5GHz" # [str] the model of the processing core on this partition
+    TDP: 7.5 # [number] TDP of the processor, in W, per core
   compute: # name of the partition
     type: CPU # [CPU or GPU]
-    model: "Intel XXX" # [str] the model of the processing core on this partition
-    TDP: 10 # [number] TDP of the processor, in W, per core
-  NaN: # name of the partition
-    type: CPU # [CPU or GPU]
-    model: "Intel XXX" # [str] the model of the processing core on this partition
-    TDP: 10 # [number] TDP of the processor, in W, per core
-  gpu_example:
+    model: "Intel(R) Xeon(R) Gold 6148/6248 @ 2.4/2.5GHz" # [str] the model of the processing core on this partition
+    TDP: 7.5 # [number] TDP of the processor, in W, per core
+  gpu_example: # NO GPU ON NIAGARA
     type: GPU
     model: "NVIDIA XXXX"
     TDP: 250 # For GPUs, the TDP is for the entire GPU
     model_CPU: "Intel XXX" # from HPC team
     TDP_CPU: 8
-PUE: 1.67 # [number > 1] Power Usage Effectiveness of the facility
-CI: 467 # [number] carbon intensity of the geographic location, in gCO2e/kWh
-#
+# Source: CPU models from private email correspondance with Ramses van Zon, May 31 2023
+# TDP from https://www.intel.ca/content/www/ca/en/products/sku/192446/intel-xeon-gold-6248-processor-27-5m-cache-2-50-ghz/specifications.html
+#     and  https://www.intel.ca/content/www/ca/en/products/sku/120489/intel-xeon-gold-6148-processor-27-5m-cache-2-40-ghz/specifications.html
+
+PUE: 1.18 # [number > 1] Power Usage Effectiveness of the facility
+# Source: private email correspondance with Ramses van Zon, May 31 2023
+
+CI: 28 # [number] carbon intensity of the geographic location, in gCO2e/kWh
+# Source: Canada United Nations Framework Convention on Climate Change (UNFCCC) 
+# ‘NIR’ (national inventory report) (Published: 14 Apr 2022). Page 67 on ‘Part 3’ document.
+# https://unfccc.int/documents/461919
+# NOTE: This is a lower bound! Other independent sources that do live tracking often quote
+# higher values, in the range of 40-80 gCO2e/kWh, e.g.
+# https://app.electricitymaps.com/zone/CA-ON or https://live.gridwatch.ca/home-page.html
+# Note that Niagara is on the standard Ontario electricity grid, relying only sporadically on generators
+
 # Below are optional parameters to accommodate some clusters. Do not remove but can be ignored.
 #
-default_unit_RSS: 'K'
+default_unit_RSS: 'M'

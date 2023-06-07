@@ -289,15 +289,24 @@ class GreenAlgorithms(Helpers_GA):
              - Total memory requested: {self.df.ReqMemX.sum():,.0f} GB
         
         Limitations to keep in mind:
-             - The workload manager doesn't alway log the exact CPU usage time, and when this information is missing, we assume that all cores are used at 100%.
+             - The workload manager doesn't always log the exact CPU usage time, and when this information is missing, we assume that all cores are used at 100%.
              - For now, we assume that GPU jobs only use 1 GPU and the GPU is used at 100% (as the information needed for more accurate measurement is not available)
              (both of these may lead to slightly overestimated carbon footprints, although the order of magnitude is likely to be correct)
              - Conversely, the wasted energy due to memory overallocation may be largely underestimated, as the information needed is not always logged.
 
+        Niagara-specific limitations:
+             - The carbon intensity used (depends on the Ontario Grid) can vary depending on your source. Currently we use the government source from the submission
+               to the UN, but independent estimates (ex. app.electricitymaps.com or live.gridwatch.ca) can place this at 2-5x higher! Therefore, take these numbers
+               with a large grain of salt. This should serve as a CONSERVATIVE order-of-magnitude estimate.
+             - You are not able to request memory on the Niagara scheduler, therefore info based on MaxRSS from sacct is empty on Niagara. Memory usage depends only
+               on the memory REQUESTED, which is a default 175GB per node.
+             - see cluster_info.yaml for more info on cluster-specific numbers.
+
         Any bugs, questions, suggestions? Post on GitHub (Llannelongue/GreenAlgorithms4HPC) or email LL582@medschl.cam.ac.uk
         {'-' * 80}
         Calculated using the Green Algorithms framework: www.green-algorithms.org
-        Please cite https://onlinelibrary.wiley.com/doi/10.1002/advs.202100707 
+        Please cite https://onlinelibrary.wiley.com/doi/10.1002/advs.202100707
+        Several modifications made to run on Niagara by Alex Bercik, June 2023
         '''
 
 def main(args, cluster_info, fParams):
@@ -313,9 +322,7 @@ def main(args, cluster_info, fParams):
 
     ### Pull usage statistics from the workload manager
     WM = WorkloadManager(args, cluster_info)
-    WM.pull_logs()
-    # BERCIK: added the following for debugging
-    # print(WM.logs_raw)    
+    WM.pull_logs()   
 
     ### Log the output for debugging
     scripts_dir = os.path.dirname(os.path.realpath(__file__))
@@ -416,6 +423,7 @@ if __name__ == "__main__":
     # Arguments for debugging
     parser.add_argument('--useOtherClusterInfo', type=str, default='', help=argparse.SUPPRESS)
     parser.add_argument('--runTests', type=str, default='', help=argparse.SUPPRESS)
+    parser.add_argument('--verbose', type=bool, default=False, help=argparse.SUPPRESS)
 
     args = parser.parse_args()
 
