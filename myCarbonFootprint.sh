@@ -33,7 +33,7 @@ echo "Python versions: OK"
 # Test if the virtualenv GA_env already exists, and if not, creates it.
 if [ ! -f GA_env/bin/activate ]; then
   echo "Need to create virtualenv"
-  python3 -m venv GA_env
+  python -m venv GA_env
   source GA_env/bin/activate
   pip3 install -r requirements.txt
 else
@@ -41,6 +41,21 @@ else
   source GA_env/bin/activate
 fi
 
+# Test if the python version is at least 3.7
+version_major=$(python -c 'import sys; print(sys.version_info[0])')
+version_minor=$(python -c 'import sys; print(sys.version_info[1])')
+if (( $version_major < 3 )); then
+  echo "The command python needs to refer to python 3"
+  exit 1
+fi
+
+if (( $version_minor < 7 )); then
+  echo "The command python needs to refer to python3.7 or higher."
+  exit 1
+fi
+echo "Python versions: OK"
+
+
 # Run the python code and pass on the arguments
 #userCWD="/home/ll582/ with space" # DEBUGONLY
-python3 GreenAlgorithms_global.py "$@" --userCWD "$userCWD"
+python GreenAlgorithms_global.py "$@" --userCWD "$userCWD"

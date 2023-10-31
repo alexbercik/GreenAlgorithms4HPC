@@ -5,6 +5,8 @@
 ##
 
 import subprocess
+import sys
+
 import pandas as pd
 from io import BytesIO
 import datetime
@@ -117,9 +119,9 @@ class Helpers_WM():
         if per_coreOrNode == 'c':
             memory *= n_cores
         else:
-            memory *= n_nodes
+            raise ValueError(f"Can't parse memory value: {mem_raw}. Please raise issue on GitHub.")
 
-        return memory
+        return self.convert_to_GB(memory,unit)
 
     def clean_RSS(self, x):
         '''
@@ -248,7 +250,19 @@ class Helpers_WM():
         :param  granularity_memory_request: [float or int] level of granularity available when requesting memory on this cluster
         :return: [float] minimum memory needed, in GB.
         '''
-        return min(x.ReqMemX,(int(x.UsedMem2_/granularity_memory_request)+1)*granularity_memory_request)
+        foo = (int(x.UsedMem2_/granularity_memory_request)+1)*granularity_memory_request
+        if x.ReqMemX < x.UsedMem2_:
+            return foo
+        else:
+            return min(x.ReqMemX,foo)
+
+    def calc_memory_overallocation(self, x):
+        if x.ReqMemX < x.NeededMemX:
+            # This is in case ReqMem is wrong or too low
+            return 1
+        else:
+            return x.ReqMemX/x.NeededMemX
+
 
     def calc_CPUusage2use(self, x):
         if x.TotalCPUtime_.total_seconds() == 0: # This is when the workload manager actually didn't store real usage
@@ -509,7 +523,7 @@ class WorkloadManager(Helpers_WM):
             axis=1)
 
         ### Add memory waste information
-        self.df_agg['memOverallocationFactorX'] = (self.df_agg.ReqMemX) / self.df_agg.NeededMemX
+        self.df_agg['memOverallocationFactorX'] = self.df_agg.apply(self.calc_memory_overallocation, axis=1)
 
         # foo = self.df_agg[['TotalCPUtime_', 'CPUwallclocktime_', 'WallclockTimeX', 'NCPUS_', 'CoreHoursChargedCPUX',
         #                    'CoreHoursChargedGPUX', 'TotalCPUtime2useX', 'TotalGPUtime2useX']] # DEBUGONLY
